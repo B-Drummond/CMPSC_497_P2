@@ -462,7 +462,7 @@ struct A *upload_A( FILE *fp )
 	int flagA = 0;
 	int countA = 0;//To count if all struct members have been filled
 	int structFlag = 0;
-
+	int i;
 	assert(fseek(fp, 0L, SEEK_SET) == 0);//Go to beginning of file
 	fgets(buff, FILE_LINE_LEN, fp);//Get first line
 	token = strtok(buff, delimiter);//Get first token
@@ -497,7 +497,7 @@ struct A *upload_A( FILE *fp )
 		if(strcmp(token, "struct") == 0)//If line starts with struct
 		{
 			structFlag = 1;
-			for(int i = 0; i < strlen(value); i++) //Check if obj ID is valid integer
+			for(i = 0; i < strlen(value); i++) //Check if obj ID is valid integer
 			{
 				assert(value[i] <= '9' && value[i] >= '0');
 			}
@@ -658,7 +658,7 @@ struct B *upload_B( FILE *fp )
 	int flagA = 0;
 	int countA = 0;//To count if all struct members have been filled
 	int structFlag = 0;
-
+	int i;
 	assert(fseek(fp, 0L, SEEK_SET) == 0);//Go to beginning of file
 	
 	fgets(buff, FILE_LINE_LEN, fp);//Get first line
@@ -697,7 +697,7 @@ struct B *upload_B( FILE *fp )
 		if(strcmp(token, "struct") == 0)//If first token is struct
 		{
 			structFlag = 1;
-			for(int i = 0; i < strlen(value); i++) //Check if obj ID is valid
+			for(i = 0; i < strlen(value); i++) //Check if obj ID is valid
 			{
 				assert(value[i] <= '9' && value[i] >= '0');
 			}
@@ -816,6 +816,7 @@ struct C *upload_C( FILE *fp )
 	int flagA = 0;
 	int countA = 0;//To count if all struct members have been filled
 	int structFlag = 0;
+	int i;
 	assert(fseek(fp, 0L, SEEK_SET) == 0);//Go to beginning of file
 	
 	fgets(buff, FILE_LINE_LEN, fp);//Get first line
@@ -856,7 +857,7 @@ struct C *upload_C( FILE *fp )
 		if(strcmp(token, "struct") == 0)//If first token is struct
 		{
 			structFlag = 1;
-			for(int i = 0; i < strlen(value); i++) //Check if obj ID is valid
+			for(i = 0; i < strlen(value); i++) //Check if obj ID is valid
 			{
 				assert(value[i] <= '9' && value[i] >= '0');
 				
@@ -986,6 +987,7 @@ struct D *upload_D( FILE *fp )
 	int flagA = 0;
 	int countA = 0;//To count if all struct members have been filled
 	int structFlag = 0;
+	int i;
 	assert(fseek(fp, 0L, SEEK_SET) == 0);//Go to beginning of file
 	
 	fgets(buff, FILE_LINE_LEN, fp);//Get first line
@@ -1024,7 +1026,7 @@ struct D *upload_D( FILE *fp )
 		if(strcmp(token, "struct") == 0)//If first token is struct
 		{
 			structFlag = 1;
-			for(int i = 0; i < strlen(value); i++) //Check if obj ID is valid
+			for(i = 0; i < strlen(value); i++) //Check if obj ID is valid
 			{
 				assert(value[i] <= '9' && value[i] >= '0');//Check if objID is an int
 			}
