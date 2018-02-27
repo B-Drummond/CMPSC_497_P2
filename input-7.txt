@@ -1,0 +1,32 @@
+
+struct C 7
+field num_a -33
+field string_b ieyev
+field num_c 67
+field string_d slk
+field string_e dqto
+
+
+struct B 7
+field string_b kiydqkwb
+field num_a -9
+field num_c 12
+
+
+
+struct A 7
+field ptr_b B
+field string_a Yxifwtdxjp
+field num_g 69
+field ptr_c C
+field string_d Rrmdcepm
+field ptr_e D
+field num_f 3
+
+struct D 7
+field string_d dix
+field string_a Dits
+field string_b yvfdw
+
+field string_c Yybdc
+field num_e -81
