@@ -1,0 +1,134 @@
+In all, after 3 hours and 27 minutes, I had 55 paths, 96 unique crashes, and 230k crashes total. I could not find any crashes that were due to segmentation faults, all of my crashes seemed to be due to my assert statements. I included a lot of checks in my code for edge cases of input and since an incorrectly formatted input file would be caught by one of my asserts, it never got to the point where it would run into a segmentation fault. Listed below are all of the input files that I tested that were from the crashes directory, along with the crash information output. Some of the files did not crash when I ran the input file myself, and for those files, when I checked the input file format, I saw that it was acceptable so it should not cause a crash. The crashes that had the output "Error: First token in file is not struct" were caught by my if statement in set_object() which reads the first line of the file that is not blank and checks to make sure that the first word is "struct".
+
+
+For input id = 000000:
+Error: First token in file is not struct
+
+For input id = 000001:
+cmpsc497-p1: cmpsc497-main.c:504: upload_A: Assertion `strcmp(name, "B") == 0 || strcmp(name, "C") == 0 || strcmp(name, "D") == 0 || strcmp(name, "A") == 0' failed.
+Abort (core dumped)
+
+For input id = 000002:
+Size of object = 188
+
+For input id = 000003:
+cmpsc497-p1: cmpsc497-main.c:502: upload_A: Assertion `value[i] <= '9' && value[i] >= '0'' failed.
+Abort (core dumped)
+
+For input id = 000004:
+cmpsc497-p1: cmpsc497-main.c:488: upload_A: Assertion `token != ((void *)0) && name != ((void *)0) && value != ((void *)0) && extra == ((void *)0)' failed.
+Abort (core dumped)
+
+For input id = 000005:
+cmpsc497-p1: cmpsc497-main.c:621: upload_A: Assertion `rtn != 1' failed.
+Abort (core dumped)
+
+For input id = 000006:
+Size of object = 188
+
+For input id = 000007:
+cmpsc497-p1: cmpsc497-main.c:519: upload_A: Assertion `token != ((void *)0) && name != ((void *)0) && value != ((void *)0) && extra == ((void *)0)' failed.
+Abort (core dumped)
+
+For input id = 000008:
+cmpsc497-p1: cmpsc497-main.c:527: upload_A: Assertion `strcmp(name, "string_a") == 0 || strcmp(name, "ptr_b") == 0 || strcmp(name, "ptr_c") == 0 || strcmp(name, "string_d") == 0 || strcmp(name, "ptr_e") == 0 || strcmp(name, "num_f") == 0 || strcmp(name, "num_g") == 0' failed.
+Abort (core dumped)
+
+For input id = 000009:
+cse-p204inst23.cse.psu.edu 62% ./cmpsc497-p1 set passw usern input-000009.txt
+cmpsc497-p1: cmpsc497-main.c:519: upload_A: Assertion `token != ((void *)0) && name != ((void *)0) && value != ((void *)0) && extra == ((void *)0)' failed.
+Abort (core dumped)
+
+For input id = 000010:
+cmpsc497-p1: cmpsc497-main.c:621: upload_A: Assertion `rtn != 1' failed.
+Abort (core dumped)
+
+For input id = 000011:
+cmpsc497-p1: cmpsc497-main.c:548: upload_A: Assertion `strcmp(value, "C") == 0' failed.
+Abort (core dumped)
+
+For input id = 000012:
+cmpsc497-p1: cmpsc497-main.c:536: upload_A: Assertion `strcmp(value, "B") == 0' failed.
+Abort (core dumped)
+
+For input id = 000013:
+cmpsc497-p1: cmpsc497-main.c:693: upload_B: Assertion `(strcmp(token, "struct") == 0 || strcmp(token, "field") == 0)' failed.
+Abort (core dumped)
+
+For input id = 000014:
+Size of object = 188
+
+For input id = 000018:
+cmpsc497-p1: cmpsc497-main.c:527: upload_A: Assertion `strcmp(name, "string_a") == 0 || strcmp(name, "ptr_b") == 0 || strcmp(name, "ptr_c") == 0 || strcmp(name, "string_d") == 0 || strcmp(name, "ptr_e") == 0 || strcmp(name, "num_f") == 0 || strcmp(name, "num_g") == 0' failed.
+Abort (core dumped)
+
+For input id = 000029:
+Size of object = 188
+
+For input id = 000034:
+cmpsc497-p1: cmpsc497-main.c:758: upload_B: Assertion `atoi(value) != 0' failed.
+Abort (core dumped)
+
+For input id = 000043:
+cse-p204inst23.cse.psu.edu 71% ./cmpsc497-p1 set passw usern input-000043.txt
+Size of object = 188
+
+For input id = 000048:
+cmpsc497-p1: cmpsc497-main.c:919: upload_C: Assertion `atoi(value) != 0' failed.
+Abort (core dumped)
+
+For input id = 000053:
+cmpsc497-p1: cmpsc497-main.c:1031: upload_D: Assertion `value[i] <= '9' && value[i] >= '0'' failed.
+Abort (core dumped)
+
+For input id = 000066:
+cmpsc497-p1: cmpsc497-main.c:687: upload_B: Assertion `token != ((void *)0) && name != ((void *)0) && value != ((void *)0) && extra == ((void *)0)' failed.
+Abort (core dumped)
+
+For input id = 000079:
+cmpsc497-p1: cmpsc497-main.c:621: upload_A: Assertion `rtn != 1' failed.
+Abort (core dumped)
+
+For input id = 000085:
+cmpsc497-p1: cmpsc497-main.c:951: upload_C: Assertion `rtn != 1' failed.
+Abort (core dumped)
+
+For input id = 000086:
+cmpsc497-p1: cmpsc497-main.c:944: upload_C: Assertion `strcmp(token, "struct") != 0 || countA == 5' failed.
+Abort (core dumped)
+
+For input id = 000092:
+Size of object = 188
+
+For input id = 000071:
+Error: First token in file is not struct
+
+For input id = 000072:
+cmpsc497-p1: cmpsc497-main.c:488: upload_A: Assertion `token != ((void *)0) && name != ((void *)0) && value != ((void *)0) && extra == ((void *)0)' failed.
+Abort (core dumped)
+
+For input id = 000073:
+cmpsc497-p1: cmpsc497-main.c:519: upload_A: Assertion `token != ((void *)0) && name != ((void *)0) && value != ((void *)0) && extra == ((void *)0)' failed.
+Abort (core dumped)
+
+For input id = 000074:
+cmpsc497-p1: cmpsc497-main.c:687: upload_B: Assertion `token != ((void *)0) && name != ((void *)0) && value != ((void *)0) && extra == ((void *)0)' failed.
+Abort (core dumped)
+
+For input id = 000075:
+cmpsc497-p1: cmpsc497-main.c:687: upload_B: Assertion `token != ((void *)0) && name != ((void *)0) && value != ((void *)0) && extra == ((void *)0)' failed.
+Abort (core dumped)
+
+For input id = 000076:
+cmpsc497-p1: cmpsc497-main.c:687: upload_B: Assertion `token != ((void *)0) && name != ((void *)0) && value != ((void *)0) && extra == ((void *)0)' failed.
+Abort (core dumped)
+
+For input id = 000077:
+cmpsc497-p1: cmpsc497-main.c:847: upload_C: Assertion `token != ((void *)0) && name != ((void *)0) && value != ((void *)0) && extra == ((void *)0)' failed.
+Abort (core dumped)
+
+For input id = 000033:
+cmpsc497-p1: cmpsc497-main.c:719: upload_B: Assertion `token != ((void *)0) && name != ((void *)0) && value != ((void *)0) && extra == ((void *)0)' failed.
+Abort (core dumped)
+
+
