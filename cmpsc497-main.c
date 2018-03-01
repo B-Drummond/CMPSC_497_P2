@@ -36,7 +36,6 @@
 #define LINE_SIZE   100
 
 //My added definitions
-#define FILE_LINE_LEN 255
 #define NUM_FIELDS_A 7
 #define NUM_FIELDS_B 3
 #define NUM_FIELDS_C 5
@@ -181,9 +180,8 @@ int set_password( char *username, char *password )
 
 	assert( strlen( password ) <= PWD_LEN );//Check if password is valid
 
-	strncpy(hash, salt, SALT_LEN);//Copy salt into hash
-	strncat(hash, password, strlen(password));//Copy password into hash
-	
+	memcpy(hash, salt, SALT_LEN);
+	memcpy(&hash[SALT_LEN], password, strlen(password));
 	digest_message(hash, HASH_LEN, &digest, &digest_len);//Get hash value (digest)
 	
 	kvs_auth_set( Passwds, name, digest, &salt);//Set password and store hash
@@ -195,11 +193,13 @@ int set_password( char *username, char *password )
 	{
 		rtn = 0;//Success
 	}
-	/*free(hash);
+
+	free(hash);
 	hash = NULL;
 	free(digest);
-	digest = NULL;*/
-
+	digest = NULL;
+	free(name);
+	name = NULL;
 	return rtn;
 }
 
@@ -223,9 +223,6 @@ int unknown_user( char *username )
 
 	memset( name, 0, NAME_LEN );
 	memcpy( name, username, strlen(username) );
-	
-	
-	
 
 	return( kvs_auth_get( Passwds, name, &hash, &salt ));
 }
@@ -264,17 +261,12 @@ int authenticate_user( char *username, char *password )
 	memset(digest, 0, HASH_LEN);//Set digest memory to NULL
 	
 	assert( strlen( password ) <= PWD_LEN );//Check if password is valid
-	//memcpy(inputHash, salt, SALT_LEN);
-	//memcpy(&inputHash[SALT_LEN], password, strlen(password));
-
-	strncpy(inputHash, salt, SALT_LEN);//Copy salt into current hash
-	strncat(inputHash, password,strlen(password));//Copy password into current hash
-
-	//memcpy(&hash[SALT_LEN], password, strlen(password));
+	memcpy(inputHash, salt, SALT_LEN);
+	memcpy(&inputHash[SALT_LEN], password, strlen(password));
 	digest_message(inputHash, HASH_LEN, &digest, &digest_len);//Get hash value (digest)
 	
 	//Compare current hash with stored hash for user
-	if(strncmp(digest, storedHash, digest_len) == 0)
+	if(memcmp(digest, storedHash, digest_len) == 0)
 	{
 		rtn = 1; //Authenticated!!
 	}
@@ -283,10 +275,12 @@ int authenticate_user( char *username, char *password )
 		rtn = 0;//Not authenticated
 	}
 
-	/*free(inputHash);
+	free(inputHash);
 	inputHash = NULL;
 	free(digest);
-	digest = NULL;*/
+	digest = NULL;
+	free(name);
+	name = NULL;
 
 	return rtn;
 }
@@ -312,54 +306,55 @@ int set_object( char *filename, char *username, char *password )
 		fprintf(stderr, "Authenticate_user was unsuccessful\n");
 		return -1;//Not authenticated
 	}
-	unsigned char *token;
+	unsigned char *token = (unsigned char *)malloc(LINE_SIZE);
+	memset(token, 0, LINE_SIZE);
+	unsigned char *name2 = (unsigned char *)malloc(LINE_SIZE);
+	memset(name2, 0, LINE_SIZE);
+	unsigned char *value = (unsigned char *)malloc(LINE_SIZE);
+	memset(value, 0, LINE_SIZE);
+	unsigned char *extra;
 	long offset = 0;//File offset
-	char buff[FILE_LINE_LEN];//Used to hold line of file
+	unsigned char *buff = (unsigned char *)malloc(LINE_SIZE);
+	memset(buff, 0, LINE_SIZE);
 	unsigned char *key = (unsigned char *)malloc(KEY_LEN);//Current token in line
 	memset( key, 0, KEY_LEN);
 	unsigned char *name = (unsigned char *)malloc(NAME_LEN);
+	size_t len = LINE_SIZE;
+	char *num;
+	long id;
 
 	assert( strlen( username ) <= NAME_LEN );
 
 	memset( name, 0, NAME_LEN );
 	memcpy( name, username, strlen(username) );
 	unsigned char *flag;//Used to check when the last token in line has been reached
-	char delimiter[] = " ";//Delimiter for seperating tokens
 	int rtn;//Return value
 	FILE *fp = fopen(filename, "r");//Open file
-	fgets(buff, FILE_LINE_LEN, fp);//Get first line of file
+	assert(fp != NULL);
+	assert(getline(&buff, &len, fp) != -1);
 
-	token = strtok(buff, delimiter);//Get first token in line
-	while(strcmp(token, "\n") == 0)//If line is empty
+	while(strncmp(buff, "\n", strlen(buff)) == 0)//If line is empty
 	{
 		offset = ftell(fp);
-		fgets(buff, FILE_LINE_LEN, fp);//Get first line
-		token = strtok(buff, delimiter);//Get first token
+		assert(offset != -1L);
+		assert(getline(&buff, &len, fp) != -1);
 	}
-	if(strcmp(token, "struct") != 0)// If first token is not "struct" then error
+	assert(sscanf(buff, "%s %s %s", token, name2, value) == 3);
+	if(strncmp(token, "struct", strlen(token)) != 0)// If first token is not "struct" then error
 	{
 		fprintf(stderr, "Error: First token in file is not struct\n");
 		return -1;
 	}
-	//Back to beginning of where text starts in file
-	if(fseek(fp, offset, SEEK_SET) != 0)
+	
+	if(value[strlen(value) - 1] == '\n')
 	{
-		fprintf(stderr, "Error doing fseek()\n");
-		return -1;//Error in seek file
+		value[strlen(value) - 1] = '\0';//Replace '\n' at end with '\0'
 	}
-	fgets(buff, FILE_LINE_LEN, fp);//Get first line
-	token = strtok(buff, delimiter);//Get first token
-	while(token != NULL)//While there are still tokens in the line
-	{
-		flag = strtok(NULL, delimiter);//flag gets the next token
-		if(flag == NULL)//If there is no next token
-		{
-			break;//Break before reassigning the token value
-		}
-		token = flag;//Else, token gets the next token in line
-	}
-	token[strlen(token) - 1] = '\0';//Replace '\n' at end with '\0'
-	memcpy( key, token, strlen(token));
+	id = strtol(value, &num, 10);
+	assert(ERANGE != errno && num != value && ('\n' == *num || '\0' == *num));
+								
+	
+	memcpy( key, value, strlen(value));
 	struct A *objA = upload_A(fp);
 
 	if(objA != NULL)//If upload A was successful
@@ -374,7 +369,20 @@ int set_object( char *filename, char *username, char *password )
 		rtn = -1;//Failure
 	}
 		
-	fclose(fp);//Close file
+	assert(fclose(fp) == 0);//Close file
+
+	free(value);
+	value = NULL;
+	free(name2);
+	name2 = NULL;
+	free(token);
+	token = NULL;
+	free(buff);
+	buff = NULL;
+	free(key);
+	key = NULL;
+	free(name);
+	name = NULL;
 	return rtn;
 }
 
@@ -448,94 +456,99 @@ int get_object( char *username, char *password, char *id )
 
 struct A *upload_A( FILE *fp )
 {
-
 	struct A* objA = (struct A*)malloc(sizeof(struct A));
 	memset(objA, 0, sizeof(struct A));
-	char buff[FILE_LINE_LEN];//To store line of file in
-	char *token = NULL;//For first token on the line
-	char *name = NULL;//For second token on the line
-	char *value = NULL;//For third token on the line
-	char *extra = NULL;//To test if there are too many tokens on the line
+	unsigned char *buff = (unsigned char *)malloc(LINE_SIZE);
+	memset(buff, 0, LINE_SIZE);
+	unsigned char *token = (unsigned char *)malloc(LINE_SIZE);
+	memset(token, 0, LINE_SIZE);
+	unsigned char *name = (unsigned char *)malloc(LINE_SIZE);
+	memset(name, 0, LINE_SIZE);
+	unsigned char *value = (unsigned char *)malloc(LINE_SIZE);
+	memset(value, 0, LINE_SIZE);
+	unsigned char *extra = NULL;//To test if there are too many tokens on the line
 	long offset = 0;//File offset
 	int rtn = 0;//Return flag
-	char delimiter[] = " ";//To seperate tokens
 	int flagA = 0;
 	int countA = 0;//To count if all struct members have been filled
 	int structFlag = 0;
 	int i;
+	size_t len = LINE_SIZE;
+	char *num;
+	ssize_t read;
+
+
 	assert(fseek(fp, 0L, SEEK_SET) == 0);//Go to beginning of file
-	fgets(buff, FILE_LINE_LEN, fp);//Get first line
-	token = strtok(buff, delimiter);//Get first token
-	while(strncmp(token, "\n", 1) == 0)//While line is empty
+	assert(getline(&buff, &len, fp) != -1);
+	
+	while(strncmp(buff, "\n", strlen(buff)) == 0)//While line is empty
 	{
 		offset = ftell(fp);//Save file offset
-		fgets(buff, FILE_LINE_LEN, fp);//Get next line
-		token = strtok(buff, delimiter);//Get first token
+		assert(offset != -1L);
+		assert(getline(&buff, &len, fp) != -1);
 	}
-	assert(strncmp(token, "struct", 6) == 0);// If first token is not "struct" then error
+	assert(sscanf(buff, "%s %s %s", token, name, value) == 3);
+	assert(strncmp(token, "struct", strlen(token)) == 0);// If first token is not "struct" then error
 	//Back to beginning of where text starts in file
 	assert(fseek(fp, offset, SEEK_SET) == 0);
-	fgets(buff, FILE_LINE_LEN, fp);//Get first line
+	assert(getline(&buff, &len, fp) != -1);
 	do{
-		token = strtok(buff, delimiter);
-		name = strtok(NULL, delimiter);
-		value = strtok(NULL, delimiter);
-		extra = strtok(NULL, delimiter);
-		if(strncmp(token, "\n", 1) == 0)//If line is blank, skip
+		if(strncmp(buff, "\n", strlen(buff)) == 0)
 		{
 			continue;
 		}
+		assert(sscanf(buff, "%s %s %s", token, name, value) == 3);
 		assert(token != NULL && name != NULL && value != NULL && extra == NULL);
+
 		if(value[strlen(value) - 1] == '\n')
 		{
 			value[strlen(value) - 1] = '\0';//Replace '\n' at end with '\0'
 		}
-		assert((strncmp(token, "struct", 6) == 0 || strncmp(token, "field", 5) == 0));
+
+		assert((strncmp(token, "struct", strlen(token)) == 0 || strncmp(token, "field", strlen(token)) == 0));
 		
 		assert(strlen(value) <= NAME_LEN);
 		
-		if(strncmp(token, "struct", 6) == 0)//If line starts with struct
+		if(strncmp(token, "struct", strlen(token)) == 0)//If line starts with struct
 		{
 			structFlag = 1;
 			for(i = 0; i < strlen(value); i++) //Check if obj ID is valid integer
 			{
 				assert(value[i] <= '9' && value[i] >= '0');
 			}
-			assert(strncmp(name, "B", 1) == 0 || strncmp(name, "C", 1) == 0 || strncmp(name, "D", 1) == 0 || strncmp(name, "A", 1) == 0);
+			assert(strncmp(name, "B", strlen(name)) == 0 || strncmp(name, "C", strlen(name)) == 0 || strncmp(name, "D", strlen(name)) == 0 || strncmp(name, "A", strlen(name)) == 0);
 			
-			if(strncmp(name, "A", 1) == 0)//If at struct A
+			if(strncmp(name, "A", strlen(name)) == 0)//If at struct A
 			{
 				flagA = 1;
-				while(fgets(buff, FILE_LINE_LEN, fp))//Get next line
+				while((read = getline(&buff, &len, fp)) != -1)
 				{
-					token = strtok(buff, delimiter);//Get first token
-					name = strtok(NULL, delimiter);//Get second token
-					value = strtok(NULL, delimiter);//Get third token
-					extra = strtok(NULL, delimiter);//Check if incorrect number of tokens
-					if(strncmp(token, "\n", 1) == 0)//If line is empty, skip
+					if(strncmp(buff, "\n", strlen(buff)) == 0)
 					{
 						continue;
 					}
+					assert(sscanf(buff, "%s %s %s", token, name, value) == 3);
 					assert(token != NULL && name != NULL && value != NULL && extra == NULL);
 					if(value[strlen(value) - 1] == '\n')
 					{
 						value[strlen(value) - 1] = '\0';//Replace '\n' at end with '\0'
 					}
 					assert(strlen(value) <= NAME_LEN);
-					if(strncmp(token, "field", 5) == 0)//If line starts with field
+					if(strncmp(token, "field", strlen(token)) == 0)//If line starts with field
 					{
-						assert(strncmp(name, "string_a", 8) == 0 || strncmp(name, "ptr_b", 5) == 0 || strncmp(name, "ptr_c", 5) == 0 || strncmp(name, "string_d", 8) == 0 || strncmp(name, "ptr_e", 5) == 0 || strncmp(name, "num_f", 5) == 0 || strncmp(name, "num_g", 5) == 0);
-						if(strncmp(name, "string_a", 8) == 0)//If var name is string_a
+						assert(strncmp(name, "string_a", strlen(name)) == 0 || strncmp(name, "ptr_b", strlen(name)) == 0 || strncmp(name, "ptr_c", strlen(name)) == 0 || strncmp(name, "string_d", strlen(name)) == 0 || strncmp(name, "ptr_e", strlen(name)) == 0 || strncmp(name, "num_f", strlen(name)) == 0 || strncmp(name, "num_g", strlen(name)) == 0);
+						if(strncmp(name, "string_a", strlen(name)) == 0)//If var name is string_a
 						{
-							strncpy(objA->string_a, value, strlen(value));//Store string_a
+							snprintf(objA->string_a, strlen(value), "%s", value);
 							countA++;//Increment counter for filled struct members
 							//printf("string_a: %s\n", objA->string_a);
 						}
-						else if(strncmp(name, "ptr_b", 5) == 0)//If var name is ptr_b
+						else if(strncmp(name, "ptr_b", strlen(name)) == 0)//If var name is ptr_b
 						{
-							assert(strncmp(value, "B", 1) == 0);
+							assert(strncmp(value, "B", strlen(value)) == 0);
 							
 							offset = ftell(fp);//Get current file offset
+							assert(offset != -1L);
 							objA->ptr_b = upload_B(fp);//Fill B struct
 							fseek(fp, offset, SEEK_SET);//Reset file pointer position
 							assert(objA->ptr_b != NULL);//If ptr_b was not filled
@@ -543,11 +556,12 @@ struct A *upload_A( FILE *fp )
 							countA++;//One more filled struct member
 							//printf("ptr_b: %p\n", objA->ptr_b);
 						}
-						else if(strncmp(name, "ptr_c", 5) == 0)//If var name is ptr_c
+						else if(strncmp(name, "ptr_c", strlen(name)) == 0)//If var name is ptr_c
 						{
-							assert(strncmp(value, "C", 1) == 0);
+							assert(strncmp(value, "C", strlen(value)) == 0);
 							
 							offset = ftell(fp);//Get current file  offset
+							assert(offset != -1L);
 							objA->ptr_c = upload_C(fp);//Fill C struct
 							fseek(fp, offset, SEEK_SET);//Reset file pointer position
 							assert(objA->ptr_c != NULL);//If ptr_c was not filled
@@ -555,17 +569,18 @@ struct A *upload_A( FILE *fp )
 							countA++;//One more filled struct member
 							//printf("ptr_c: %p\n", objA->ptr_c);
 						}
-						else if(strncmp(name, "string_d", 8) == 0)//If var name is string_d
+						else if(strncmp(name, "string_d", strlen(name)) == 0)//If var name is string_d
 						{
-							strncpy(objA->string_d, value, strlen(value));//Store string_d
+							snprintf(objA->string_d, strlen(value), "%s", value);
 							countA++;//One more filled struct member
 							//printf("string_d: %s\n", objA->string_d);
 						}
-						else if(strncmp(name, "ptr_e", 5) == 0)//If var name is ptr_e
+						else if(strncmp(name, "ptr_e", strlen(name)) == 0)//If var name is ptr_e
 						{
-							assert(strncmp(value, "D", 1) == 0);
+							assert(strncmp(value, "D", strlen(value)) == 0);
 							
 							offset = ftell(fp);//Get current file offset
+							assert(offset != -1L);
 							objA->ptr_e = upload_D(fp);//Fill D struct
 							fseek(fp, offset, SEEK_SET);//Reset file pointer position
 							assert(objA->ptr_e != NULL);//If ptr_e was not filled
@@ -573,62 +588,58 @@ struct A *upload_A( FILE *fp )
 							countA++;
 							//printf("ptr_e: %p\n", objA->ptr_e);
 						}
-						else if(strncmp(name, "num_f", 5) == 0)//If var name is num_f
+						else if(strncmp(name, "num_f", strlen(name)) == 0)//If var name is num_f
 						{
 
-							if(strncmp(value, "0", 1) == 0)//If num_f == 0
-							{
-								objA->num_f = 0;//Set num_f == 0
-
-							}
-							else//If it is valid int
-							{
-								assert(atoi(value) != 0);//Check if valid integer
-								objA->num_f = atoi(value);//Store num_f
-							}
+							objA->num_f = strtol(value, &num, 10);
+							assert(ERANGE != errno && num != value && ('\n' == *num || '\0' == *num));
 							countA++;
 							//printf("num_f: %d\n", objA->num_f);
 						}
-						else if(strncmp(name, "num_g", 5) == 0)//If var name is num_g
+						else if(strncmp(name, "num_g", strlen(name)) == 0)//If var name is num_g
 						{
-							if(strncmp(value, "0", 1) == 0)//If num_g == 0
-							{
-								objA->num_g = 0;//Set num_g == 0
-							}
-							else//If it is valid int
-							{
-								assert(atoi(value) != 0);//Check if valid integer
-								objA->num_g = atoi(value);//Store num_g
-							}
+							objA->num_g = strtol(value, &num, 10);
+							assert(ERANGE != errno && num != value && ('\n' == *num || '\0' == *num));
 							countA++;
 							//printf("num_g: %d\n", objA->num_g);
 						}
 					}
-					/*else if(strcmp(token, "struct") == 0 && countA == 7)
-					{
-						return objA;
-					}*/
 					else
 					{
-						assert(strncmp(token, "struct", 6) != 0 || countA == NUM_FIELDS_A);
+						assert(strncmp(token, "struct", strlen(token)) != 0 || countA == NUM_FIELDS_A);
 						rtn = 1;//First token not equal to field or struct
-						//return NULL;
 					}
 					if(countA == NUM_FIELDS_A)//Finished filling struct A
 					{
+						free(token);
+						token = NULL;
+						free(value);
+						value = NULL;
+						free(name);
+						name = NULL;
+						free(buff);
+						buff = NULL;
 						return objA;//Return struct A
 					}
 					assert(rtn != 1);
 				}
 			}
 		}
-		else if(strncmp(token, "field", 5) == 0 && flagA == 1)
+		else if(strncmp(token, "field", strlen(token)) == 0 && flagA == 1)
 		{
 			structFlag = 0;
 		}
-	}while(fgets(buff, FILE_LINE_LEN, fp));//Keep getting next line
+	}while((read = getline(&buff, &len, fp)) != -1);
 	
 	fprintf(stderr, "Error: could not fill struct A properly\n");
+	free(token);
+	token = NULL;
+	free(value);
+	value = NULL;
+	free(name);
+	name = NULL;
+	free(buff);
+	buff = NULL;
 	return NULL;//Error: Did not fill struct A
 }
 
@@ -647,133 +658,126 @@ struct B *upload_B( FILE *fp )
 {
 	struct B *objB = (struct B*)malloc(sizeof(struct B));
 	memset(objB, 0, sizeof(struct B));
-	char buff[FILE_LINE_LEN];//To store line of file in
-	char *token = NULL;//For first token on the line
-	char *name = NULL;//For second token on the line
-	char *value = NULL;//For third token on the line
-	char *extra = NULL;//To test if there are too many tokens on the line
+	unsigned char *buff = (unsigned char *)malloc(LINE_SIZE);
+	memset(buff, 0, LINE_SIZE);
+	unsigned char *token = (unsigned char *)malloc(LINE_SIZE);
+	memset(token, 0, LINE_SIZE);
+	unsigned char *name = (unsigned char *)malloc(LINE_SIZE);
+	memset(name, 0, LINE_SIZE);
+	unsigned char *value = (unsigned char *)malloc(LINE_SIZE);
+	memset(value, 0, LINE_SIZE);
+	unsigned char *extra = NULL;//To test if there are too many tokens on the line
 	long offset = 0;//File offset
 	int rtn = 0;//Return flag
-	char delimiter[] = " ";//To seperate tokens
 	int flagA = 0;
 	int countA = 0;//To count if all struct members have been filled
 	int structFlag = 0;
 	int i;
+	size_t len = LINE_SIZE;
+	char *num;
+	ssize_t read;
+
 	assert(fseek(fp, 0L, SEEK_SET) == 0);//Go to beginning of file
+	assert(getline(&buff, &len, fp) != -1);
 	
-	fgets(buff, FILE_LINE_LEN, fp);//Get first line
-	token = strtok(buff, delimiter);//Get first token
-	while(strncmp(token, "\n", 1) == 0)
+	while(strncmp(buff, "\n", strlen(buff)) == 0)
 	{
 		offset = ftell(fp);
-		fgets(buff, FILE_LINE_LEN, fp);//Get first line
-		token = strtok(buff, delimiter);//Get first token
+		assert(offset != -1L);
+		assert(getline(&buff, &len, fp) != -1);
 	}
-	assert(strncmp(token, "struct", 6) == 0);// If first token is not "struct" then error
+	assert(sscanf(buff, "%s %s %s", token, name, value) == 3);
+	assert(strncmp(token, "struct", strlen(token)) == 0);// If first token is not "struct" then error
 	
 	//Back to beginning of where text starts in file
 	assert(fseek(fp, offset, SEEK_SET) == 0);
 	
-	fgets(buff, FILE_LINE_LEN, fp);//Get first line
+	assert(getline(&buff, &len, fp) != -1);
+
 	do{
-		token = strtok(buff, delimiter);
-		name = strtok(NULL, delimiter);
-		value = strtok(NULL, delimiter);
-		extra = strtok(NULL, delimiter);
-		if(strncmp(token, "\n", 1) == 0)
+		if(strncmp(buff, "\n", strlen(buff)) == 0)
 		{
 			continue;
 		}
+		assert(sscanf(buff, "%s %s %s", token, name, value) == 3);
 		assert(token != NULL && name != NULL && value != NULL && extra == NULL);
 		
 		if(value[strlen(value) - 1] == '\n')
 		{
 			value[strlen(value) - 1] = '\0';//Replace '\n' at end with '\0'
 		}
-		assert((strncmp(token, "struct", 6) == 0 || strncmp(token, "field", 5) == 0));
+
+		assert((strncmp(token, "struct", strlen(token)) == 0 || strncmp(token, "field", strlen(token)) == 0));
 		
 		assert(strlen(value) <= NAME_LEN);
 		
-		if(strncmp(token, "struct", 6) == 0)//If first token is struct
+		if(strncmp(token, "struct", strlen(token)) == 0)//If first token is struct
 		{
 			structFlag = 1;
 			for(i = 0; i < strlen(value); i++) //Check if obj ID is valid
 			{
 				assert(value[i] <= '9' && value[i] >= '0');
 			}
-			assert(strncmp(name, "B", 1) == 0 || strncmp(name, "C", 1) == 0 || strncmp(name, "D", 1) == 0 || strncmp(name, "A", 1) == 0);
+			assert(strncmp(name, "B", strlen(name)) == 0 || strncmp(name, "C", strlen(name)) == 0 || strncmp(name, "D", strlen(name)) == 0 || strncmp(name, "A", strlen(name)) == 0);
 			
-			if(strncmp(name, "B", 1) == 0)//If at struct B line
+			if(strncmp(name, "B", strlen(name)) == 0)//If at struct B line
 			{
 				flagA = 1;
-				while(fgets(buff, FILE_LINE_LEN, fp))//Get next line
+				while((read = getline(&buff, &len, fp)) != -1)
 				{
-					token = strtok(buff, delimiter);
-					name = strtok(NULL, delimiter);
-					value = strtok(NULL, delimiter);
-					extra = strtok(NULL, delimiter);
-					if(strncmp(token, "\n", 1) == 0)//If line is empty, skip
+					if(strncmp(buff, "\n", strlen(buff)) == 0)
 					{
 						continue;
 					}
+					assert(sscanf(buff, "%s %s %s", token, name, value) == 3);
 					assert(token != NULL && name != NULL && value != NULL && extra == NULL);
 					
 					if(value[strlen(value) - 1] == '\n')
 					{
 						value[strlen(value) - 1] = '\0';//Replace '\n' at end with '\0'
 					}
+
 					assert(strlen(value) <= NAME_LEN);
 					
-					if(strncmp(token, "field", 5) == 0)//If first token is field
+					if(strncmp(token, "field", strlen(token)) == 0)//If first token is field
 					{
-						assert(strncmp(name, "string_b", 8) == 0 || strncmp(name, "num_a", 5) == 0 || strncmp(name, "num_c", 5) == 0);
-						if(strncmp(name, "string_b", 8) == 0)
+						assert(strncmp(name, "string_b", strlen(name)) == 0 || strncmp(name, "num_a", strlen(name)) == 0 || strncmp(name, "num_c", strlen(name)) == 0);
+						if(strncmp(name, "string_b", strlen(name)) == 0)
 						{
-							strncpy(objB->string_b, value, strlen(value));
+							snprintf(objB->string_b, strlen(value), "%s", value);
 							countA++;
 							//printf("string_b: %s\n", objB->string_b);
 						}
-						else if(strncmp(name, "num_a", 5) == 0)
+						else if(strncmp(name, "num_a", strlen(name)) == 0)
 						{
-							if(strncmp(value, "0", 1) == 0)
-							{
-								objB->num_a = 0;
-							}
-							else
-							{
-								assert(atoi(value) != 0);
-								objB->num_a = atoi(value);
-							}
+							objB->num_a = strtol(value, &num, 10);
+							assert(ERANGE != errno && num != value && ('\n' == *num || '\0' == *num));
 							countA++;
 							//printf("num_a: %d\n", objB->num_a);
 						}
-						else if(strncmp(name, "num_c", 5) == 0)
+						else if(strncmp(name, "num_c", strlen(name)) == 0)
 						{
-							if(strncmp(value, "0", 1) == 0)
-							{
-								objB->num_c = 0;
-							}
-							else
-							{
-								assert(atoi(value) != 0);
-								objB->num_c = atoi(value);
-							}
+							objB->num_c = strtol(value, &num, 10);
+							assert(ERANGE != errno && num != value && ('\n' == *num || '\0' == *num));
 							countA++;
 							//printf("num_c: %d\n", objB->num_c);
 						}
 					}
-					/*else if(strcmp(token, "struct") == 0 && countA == 3)
-					{
-						return objB;
-					}*/
 					else
 					{
-						assert(strncmp(token, "struct", 6) != 0 || countA == NUM_FIELDS_B);
-						rtn = 1;
-						//return NULL;//Token not equal to field or struct
+						assert(strncmp(token, "struct", strlen(token)) != 0 || countA == NUM_FIELDS_B);
+						rtn = 1;//Token not equal to field or struct
 					}
 					if(countA == NUM_FIELDS_B)//If all struct member have been filled
 					{
+						free(token);
+						token = NULL;
+						free(value);
+						value = NULL;
+						free(name);
+						name = NULL;
+						free(buff);
+						buff = NULL;
 						return objB;
 					}
 					assert(rtn != 1);
@@ -781,12 +785,20 @@ struct B *upload_B( FILE *fp )
 
 			}
 		}
-		else if(strncmp(token, "field", 5) == 0 && flagA == 1)
+		else if(strncmp(token, "field", strlen(token)) == 0 && flagA == 1)
 		{
 			structFlag = 0;
 		}
-	}while(fgets(buff, FILE_LINE_LEN, fp));//Keep getting next line
-	
+	}while((read = getline(&buff, &len, fp)) != -1);
+
+	free(token);
+	token = NULL;
+	free(value);
+	value = NULL;
+	free(name);
+	name = NULL;
+	free(buff);
+	buff = NULL;
 	return NULL;//Error: Struct B was not filled correctly
 }
 
@@ -805,56 +817,58 @@ struct C *upload_C( FILE *fp )
 {
 	struct C *objC = (struct C*)malloc(sizeof(struct C));
 	memset(objC, 0, sizeof(struct C));
-	char buff[FILE_LINE_LEN];//To store line of file in
-	char *token = NULL;//For first token on the line
-	char *name = NULL;//For second token on the line
-	char *value = NULL;//For third token on the line
-	char *extra = NULL;//To test if there are too many tokens on the line
+	unsigned char *buff = (unsigned char *)malloc(LINE_SIZE);
+	memset(buff, 0, LINE_SIZE);
+	unsigned char *token = (unsigned char *)malloc(LINE_SIZE);
+	memset(token, 0, LINE_SIZE);
+	unsigned char *name = (unsigned char *)malloc(LINE_SIZE);
+	memset(name, 0, LINE_SIZE);
+	unsigned char *value = (unsigned char *)malloc(LINE_SIZE);
+	memset(value, 0, LINE_SIZE);
+	unsigned char *extra = NULL;//To test if there are too many tokens on the line
 	long offset = 0;//File offset
 	int rtn = 0;//Return flag
-	char delimiter[] = " ";//To seperate tokens
 	int flagA = 0;
 	int countA = 0;//To count if all struct members have been filled
 	int structFlag = 0;
 	int i;
+	size_t len = LINE_SIZE;
+	char *num;
+	ssize_t read;
+
 	assert(fseek(fp, 0L, SEEK_SET) == 0);//Go to beginning of file
-	
-	fgets(buff, FILE_LINE_LEN, fp);//Get first line
-	token = strtok(buff, delimiter);//Get first token
-	while(strncmp(token, "\n", 1) == 0)
+	assert(getline(&buff, &len, fp) != -1);
+
+	while(strncmp(buff, "\n", strlen(buff)) == 0)
 	{
 		offset = ftell(fp);
-		fgets(buff, FILE_LINE_LEN, fp);//Get first line
-		token = strtok(buff, delimiter);//Get first token
+		assert(offset != -1L);
+		assert(getline(&buff, &len, fp) != -1);
 	}
-	assert(strncmp(token, "struct", 6) == 0);// If first token is not "struct" then error
+	assert(sscanf(buff, "%s %s %s", token, name, value) == 3);
+	assert(strncmp(token, "struct", strlen(token)) == 0);// If first token is not "struct" then error
 	
 	//Back to beginning of where text starts in file
-	if(fseek(fp, offset, SEEK_SET) != 0)
-	{
-		//printf("\nError in fseek()\n");///////
-	}
-	fgets(buff, FILE_LINE_LEN, fp);//Get first line
+	assert(fseek(fp, offset, SEEK_SET) == 0);//Go to beginning of file
+
+	assert(getline(&buff, &len, fp) != -1);
 	do{
-		token = strtok(buff, delimiter);
-		name = strtok(NULL, delimiter);
-		value = strtok(NULL, delimiter);
-		extra = strtok(NULL, delimiter);
-		if(strncmp(token, "\n", 1) == 0)//If line is empty, skip
+		if(strncmp(buff, "\n", strlen(buff)) == 0)
 		{
 			continue;
 		}
+		assert(sscanf(buff, "%s %s %s", token, name, value) == 3);
 		assert(token != NULL && name != NULL && value != NULL && extra == NULL);
 		
 		if(value[strlen(value) - 1] == '\n')
 		{
 			value[strlen(value) - 1] = '\0';//Replace '\n' at end with '\0'
 		}
-		assert((strncmp(token, "struct", 6) == 0 || strncmp(token, "field", 5) == 0));
+		assert((strncmp(token, "struct", strlen(token)) == 0 || strncmp(token, "field", strlen(token)) == 0));
 		
 		assert(strlen(value) <= NAME_LEN);
 		
-		if(strncmp(token, "struct", 6) == 0)//If first token is struct
+		if(strncmp(token, "struct", strlen(token)) == 0)//If first token is struct
 		{
 			structFlag = 1;
 			for(i = 0; i < strlen(value); i++) //Check if obj ID is valid
@@ -862,21 +876,18 @@ struct C *upload_C( FILE *fp )
 				assert(value[i] <= '9' && value[i] >= '0');
 				
 			}
-			assert(strncmp(name, "B", 1) == 0 || strncmp(name, "C", 1) == 0 || strncmp(name, "D", 1) == 0 || strncmp(name, "A", 1) == 0);
+			assert(strncmp(name, "B", strlen(name)) == 0 || strncmp(name, "C", strlen(name)) == 0 || strncmp(name, "D", strlen(name)) == 0 || strncmp(name, "A", strlen(name)) == 0);
 			
-			if(strncmp(name, "C", 1) == 0)//At struct C line
+			if(strncmp(name, "C", strlen(name)) == 0)//At struct C line
 			{
 				flagA = 1;
-				while(fgets(buff, FILE_LINE_LEN, fp))//Get next line
+				while((read = getline(&buff, &len, fp)) != -1)
 				{
-					token = strtok(buff, delimiter);
-					name = strtok(NULL, delimiter);
-					value = strtok(NULL, delimiter);
-					extra = strtok(NULL, delimiter);
-					if(strncmp(token, "\n", 1) == 0)//If line is empty, skip
+					if(strncmp(buff, "\n", strlen(buff)) == 0)
 					{
 						continue;
 					}
+					assert(sscanf(buff, "%s %s %s", token, name, value) == 3);
 					assert(token != NULL && name != NULL && value != NULL && extra == NULL);
 					
 					if(value[strlen(value) - 1] == '\n')
@@ -885,79 +896,76 @@ struct C *upload_C( FILE *fp )
 					}
 					assert(strlen(value) <= NAME_LEN);
 					
-					if(strncmp(token, "field", 5) == 0)//If first token is field
+					if(strncmp(token, "field", strlen(token)) == 0)//If first token is field
 					{
-						assert(strncmp(name, "string_b", 8) == 0 || strncmp(name, "num_a", 5) == 0 || strncmp(name, "num_c", 5) == 0 || strncmp(name, "string_d", 8) == 0 || strncmp(name, "string_e", 8) == 0);
-						if(strncmp(name, "string_b", 8) == 0)
+						assert(strncmp(name, "string_b", strlen(name)) == 0 || strncmp(name, "num_a", strlen(name)) == 0 || strncmp(name, "num_c", strlen(name)) == 0 || strncmp(name, "string_d", strlen(name)) == 0 || strncmp(name, "string_e", strlen(name)) == 0);
+						if(strncmp(name, "string_b", strlen(name)) == 0)
 						{
-							strncpy(objC->string_b, value, strlen(value));
+							snprintf(objC->string_b, strlen(value), "%s", value);
 							countA++;
 							//printf("string_b: %s\n", objC->string_b);
 						}
-						else if(strncmp(name, "num_a", 5) == 0)
+						else if(strncmp(name, "num_a", strlen(name)) == 0)
 						{
-							if(strncmp(value, "0", 1) == 0)
-							{
-								objC->num_a = 0;
-							}
-							else
-							{
-								assert(atoi(value) != 0);
-								objC->num_a = atoi(value);
-							}
+							objC->num_a = strtol(value, &num, 10);
+							assert(ERANGE != errno && num != value && ('\n' == *num || '\0' == *num));
 							countA++;
 							//printf("num_a: %d\n", objC->num_a);
 						}
-						else if(strncmp(name, "num_c", 5) == 0)
+						else if(strncmp(name, "num_c", strlen(name)) == 0)
 						{
-							if(strncmp(value, "0", 1) == 0)
-							{
-								objC->num_c = 0;
-							}
-							else
-							{
-								assert(atoi(value) != 0);
-								objC->num_c = atoi(value);
-							}
+							objC->num_c = strtol(value, &num, 10);
+							assert(ERANGE != errno && num != value && ('\n' == *num || '\0' == *num));
 							countA++;
 							//printf("num_c: %d\n", objC->num_c);
 						}
-						else if(strncmp(name, "string_d", 8) == 0)
+						else if(strncmp(name, "string_d", strlen(name)) == 0)
 						{
-							strncpy(objC->string_d, value, strlen(value));
+							snprintf(objC->string_d, strlen(value), "%s", value);
 							countA++;
 							//printf("string_d: %s\n", objC->string_d);
 						}
-						else if(strncmp(name, "string_e", 8) == 0)
+						else if(strncmp(name, "string_e", strlen(name)) == 0)
 						{
-							strncpy(objC->string_e, value, strlen(value));
+							snprintf(objC->string_e, strlen(value), "%s", value);
 							countA++;
 							//printf("string_e: %s\n", objC->string_e);
 						}
 					}
-					/*else if(strcmp(token, "struct") == 0 && countA == 5)
-					{
-						return objC;
-					}*/
 					else
 					{
-						assert(strncmp(token, "struct", 6) != 0 || countA == NUM_FIELDS_C);
+						assert(strncmp(token, "struct", strlen(token)) != 0 || countA == NUM_FIELDS_C);
 						rtn = 1;//First token not equal to field or struct
 					}
 					if(countA == NUM_FIELDS_C)//If all members of struct C are filled
 					{
+						free(token);
+						token = NULL;
+						free(value);
+						value = NULL;
+						free(name);
+						name = NULL;
+						free(buff);
+						buff = NULL;
 						return objC;
 					}
 					assert(rtn != 1);
 				}
 			}
 		}
-		else if(strncmp(token, "field", 5) == 0 && flagA == 1)
+		else if(strncmp(token, "field", strlen(token)) == 0 && flagA == 1)
 		{
 			structFlag = 0;
 		}
-	}while(fgets(buff, FILE_LINE_LEN, fp));//Keep getting next line
-	
+	}while((read = getline(&buff, &len, fp)) != -1);
+	free(token);
+	token = NULL;
+	free(value);
+	value = NULL;
+	free(name);
+	name = NULL;
+	free(buff);
+	buff = NULL;
 	return NULL;//Error: struct C filled incorrectly
 }
 
@@ -976,74 +984,77 @@ struct D *upload_D( FILE *fp )
 {
 	struct D *objD = (struct D*)malloc(sizeof(struct D));
 	memset(objD, 0, sizeof(struct D));
-	char buff[FILE_LINE_LEN];//To store line of file in
-	char *token = NULL;//For first token on the line
-	char *name = NULL;//For second token on the line
-	char *value = NULL;//For third token on the line
-	char *extra = NULL;//To test if there are too many tokens on the line
+	unsigned char *buff = (unsigned char *)malloc(LINE_SIZE);
+	memset(buff, 0, LINE_SIZE);
+	unsigned char *token = (unsigned char *)malloc(LINE_SIZE);
+	memset(token, 0, LINE_SIZE);
+	unsigned char *name = (unsigned char *)malloc(LINE_SIZE);
+	memset(name, 0, LINE_SIZE);
+	unsigned char *value = (unsigned char *)malloc(LINE_SIZE);
+	memset(value, 0, LINE_SIZE);
+	unsigned char *extra = NULL;//To test if there are too many tokens on the line
 	long offset = 0;//File offset
 	int rtn = 0;//Return flag
-	char delimiter[] = " ";//To seperate tokens
 	int flagA = 0;
 	int countA = 0;//To count if all struct members have been filled
 	int structFlag = 0;
 	int i;
+	size_t len = LINE_SIZE;
+	char *num;
+	ssize_t read;
+
 	assert(fseek(fp, 0L, SEEK_SET) == 0);//Go to beginning of file
-	
-	fgets(buff, FILE_LINE_LEN, fp);//Get first line
-	token = strtok(buff, delimiter);//Get first token
-	while(strncmp(token, "\n", 1) == 0)//While line is empty
+	assert(getline(&buff, &len, fp) != -1);
+
+	while(strncmp(buff, "\n", strlen(buff)) == 0)//While line is empty
 	{
 		offset = ftell(fp);
-		fgets(buff, FILE_LINE_LEN, fp);//Get first line
-		token = strtok(buff, delimiter);//Get first token
+		assert(offset != -1L);
+		assert(getline(&buff, &len, fp) != -1);
 	}
-	assert(strncmp(token, "struct", 6) == 0);// If first token is not "struct", then error
+	assert(sscanf(buff, "%s %s %s", token, name, value) == 3);
+	assert(strncmp(token, "struct", strlen(token)) == 0);// If first token is not "struct", then error
 	
 	//Back to beginning of where text starts in file
 	assert(fseek(fp, offset, SEEK_SET) == 0);
-	
-	fgets(buff, FILE_LINE_LEN, fp);//Get first line
+	assert(getline(&buff, &len, fp) != -1);
+
 	do{
-		token = strtok(buff, delimiter);
-		name = strtok(NULL, delimiter);
-		value = strtok(NULL, delimiter);
-		extra = strtok(NULL, delimiter);
-		if(strncmp(token, "\n", 1) == 0)//If line is empty, skip
+		if(strncmp(buff, "\n", strlen(buff)) == 0)
 		{
 			continue;
 		}
+		assert(sscanf(buff, "%s %s %s", token, name, value) == 3);
 		assert(token != NULL && name != NULL && value != NULL && extra == NULL);
 		
 		if(value[strlen(value) - 1] == '\n')
 		{
 			value[strlen(value) - 1] = '\0';//Replace '\n' at end with '\0'
 		}
-		assert((strncmp(token, "struct", 6) == 0 || strncmp(token, "field", 5) == 0));
+
+		assert((strncmp(token, "struct", strlen(token)) == 0 || strncmp(token, "field", strlen(token)) == 0));
 		
 		assert(strlen(value) <= NAME_LEN);
 		
-		if(strncmp(token, "struct", 6) == 0)//If first token is struct
+		if(strncmp(token, "struct", strlen(token)) == 0)//If first token is struct
 		{
 			structFlag = 1;
 			for(i = 0; i < strlen(value); i++) //Check if obj ID is valid
 			{
 				assert(value[i] <= '9' && value[i] >= '0');//Check if objID is an int
 			}
-			assert(strncmp(name, "B", 1) == 0 || strncmp(name, "C", 1) == 0 || strncmp(name, "D", 1) == 0 || strncmp(name, "A", 1) == 0);
-			if(strncmp(name, "D", 1) == 0)//If at struct D line
+			assert(strncmp(name, "B", strlen(name)) == 0 || strncmp(name, "C", strlen(name)) == 0 || strncmp(name, "D", strlen(name)) == 0 || strncmp(name, "A", strlen(name)) == 0);
+			if(strncmp(name, "D", strlen(name)) == 0)//If at struct D line
 			{
 				flagA = 1;
-				while(fgets(buff, FILE_LINE_LEN, fp))//Get next line
+				
+				while((read = getline(&buff, &len, fp)) != -1)
 				{
-					token = strtok(buff, delimiter);
-					name = strtok(NULL, delimiter);
-					value = strtok(NULL, delimiter);
-					extra = strtok(NULL, delimiter);
-					if(strncmp(token, "\n", 1) == 0)//If line is empty, skip
+					if(strncmp(buff, "\n", strlen(buff)) == 0)
 					{
 						continue;
 					}
+					assert(sscanf(buff, "%s %s %s", token, name, value) == 3);
 					assert(token != NULL && name != NULL && value != NULL && extra == NULL);
 					
 					if(value[strlen(value) - 1] == '\n')
@@ -1052,60 +1063,56 @@ struct D *upload_D( FILE *fp )
 					}
 					assert(strlen(value) <= NAME_LEN);
 					
-					if(strncmp(token, "field", 5) == 0)//If first token is field
+					if(strncmp(token, "field", strlen(token)) == 0)//If first token is field
 					{
-						assert(strncmp(name, "string_a", 8) == 0 || strncmp(name, "num_e", 5) == 0 || strncmp(name, "string_b", 8) == 0 || strncmp(name, "string_c", 8) == 0 || strncmp(name, "string_d", 8) == 0);
-						if(strncmp(name, "string_a", 8) == 0)
+						assert(strncmp(name, "string_a", strlen(name)) == 0 || strncmp(name, "num_e", strlen(name)) == 0 || strncmp(name, "string_b", strlen(name)) == 0 || strncmp(name, "string_c", strlen(name)) == 0 || strncmp(name, "string_d", strlen(name)) == 0);
+						if(strncmp(name, "string_a", strlen(name)) == 0)
 						{
-							strncpy(objD->string_a, value, strlen(value));
+							snprintf(objD->string_a, strlen(value), "%s", value);
 							countA++;
-							//
 							//printf("string_a: %s\n", objD->string_a);
 						}
-						else if(strncmp(name, "num_e", 5) == 0)
+						else if(strncmp(name, "num_e", strlen(name)) == 0)
 						{
-							if(strncmp(value, "0", 1) == 0)
-							{
-								objD->num_e = 0;
-							}
-							else
-							{
-								assert(atoi(value) != 0);
-								objD->num_e = atoi(value);
-							}
+							objD->num_e = strtol(value, &num, 10);
+							assert(ERANGE != errno && num != value && ('\n' == *num || '\0' == *num));
 							countA++;
 							//printf("num_e: %d\n", objD->num_e);
 						}
-						else if(strncmp(name, "string_b", 8) == 0)
+						else if(strncmp(name, "string_b", strlen(name)) == 0)
 						{
-							strncpy(objD->string_b, value, strlen(value));
+							snprintf(objD->string_b, strlen(value), "%s", value);
 							countA++;
 							//printf("string_b: %s\n", objD->string_b);
 						}
-						else if(strncmp(name, "string_c", 8) == 0)
+						else if(strncmp(name, "string_c", strlen(name)) == 0)
 						{
-							strncpy(objD->string_c, value, strlen(value));
+							snprintf(objD->string_c, strlen(value), "%s", value);
 							countA++;
 							//printf("string_c: %s\n", objD->string_c);
 						}
-						else if(strncmp(name, "string_d", 8) == 0)
+						else if(strncmp(name, "string_d", strlen(name)) == 0)
 						{
-							strncpy(objD->string_d, value, strlen(value));
+							snprintf(objD->string_d, strlen(value), "%s", value);
 							countA++;
 							//printf("string_d: %s\n", objD->string_d);
 						}
 					}
-					/*else if(strcmp(token, "struct") == 0 && countA == 5)
-					{
-						return objD;
-					}*/
 					else
 					{
-						assert(strncmp(token, "struct", 6) != 0 || countA == NUM_FIELDS_D);
+						assert(strncmp(token, "struct", strlen(token)) != 0 || countA == NUM_FIELDS_D);
 						rtn = 1;//First token not equal to field or struct
 					}
 					if(countA == NUM_FIELDS_D)//If all members of struct D are filled
 					{
+						free(token);
+						token = NULL;
+						free(value);
+						value = NULL;
+						free(name);
+						name = NULL;
+						free(buff);
+						buff = NULL;
 						return objD;
 					}
 					assert(rtn != 1);
@@ -1113,12 +1120,20 @@ struct D *upload_D( FILE *fp )
 
 			}
 		}
-		else if(strncmp(token, "field", 5) == 0 && flagA == 1)
+		else if(strncmp(token, "field", strlen(token)) == 0 && flagA == 1)
 		{
 			structFlag = 0;
 		}
-	}while(fgets(buff, FILE_LINE_LEN, fp));//Keep getting next line
-	
+	}while((read = getline(&buff, &len, fp)) != -1);
+
+	free(token);
+	token = NULL;
+	free(value);
+	value = NULL;
+	free(name);
+	name = NULL;
+	free(buff);
+	buff = NULL;
 	return NULL;//Error: struct D filled incorrectly
 }
 

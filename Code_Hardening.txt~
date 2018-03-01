@@ -1,0 +1,23 @@
+To harden my code, I did the following:
+
+- replaced all fgets() calls with getline()
+- replaced all strtok() with sscanf()
+- replaced all strncpy() with snprintf()
+- replaced all atoi() with strtol()
+- replaced all strcmp() with strncmp()
+- replaced any and all string operations on KVS variables with memory operations (such as replacing strcpy and strcat with memcpy)
+- I am checking the return values for almost every function (fgets, sscanf, snprintf, fopen, fclose, strol, etc.) and am using assert statements to stop the program if any of the functions return with an error
+- I am freeing all of my allocated memory once I am done using it, and I am setting the pointers to NULL after freeing them
+- I am checking all num input and the object ID with strtol() to make sure that they are valid integers.
+
+
+I also have many assert statements to check the imput file and make sure that it is in the correct format. (I had already included many of these assertion statements in P1). The possible issues with the file input that my code checks for include:
+
+- any line with text must have three strings seperated by whitespace
+- any line without text is ignored (no matter where it is in the file)
+- every line with text must start with either "struct" or "field"
+- every line that starts with "struct" must have a valid struct name (A, B, C, or D) and be follwed by the correct number of fields (blank lines in between is OK though)
+- any string field must be of length 16 or less
+- the object ID and any num fields in a struct must be valid integers
+- all lines  with fields must follow their correspoing struct line (blank lines in between are allowed though)
+- any line that starts with "field" must have a valid variable name from its associated struct

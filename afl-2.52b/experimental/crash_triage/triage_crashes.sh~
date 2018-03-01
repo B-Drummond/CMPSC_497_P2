@@ -85,7 +85,7 @@ for crash in $DIR/crashes/id:*; do
 
   # Grab the args, converting @@ to $crash
 
-  use_args="$@"
+  use_args="set user passwd"
   use_stdio=1
 
   for a in $@; do
